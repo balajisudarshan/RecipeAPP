@@ -55,7 +55,20 @@ const login = async(req,res)=>{
     return res.status(500).json({message:"Internal server error",error:error.message})
   }
 }
+
+const profile = async(req,res)=>{
+  try{
+    const user = await User.findById(req.user.id).select('-passwordHash');
+    if(!user){
+      return res.status(404).json({message:"User not found"})
+    }
+    res.status(200).json({user});
+  }catch(err){
+    return res.status(500).json({message:"Internal server eror",error:err.message})
+  }
+}
 module.exports = {
   registerUser,
-  login
+  login,
+  profile
 };
