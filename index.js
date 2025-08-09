@@ -9,6 +9,7 @@ app.use(cors())
 app.use(express.json())
 
 app.use('/api/user',require('./routes/userRoute.js'))
+app.use('/api/recipe',require('./routes/recipeRoute.js'))
 if(isConnected){
   console.log("Database connection established");
   app.listen(process.env.PORT ,()=>{

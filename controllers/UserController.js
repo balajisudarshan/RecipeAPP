@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const recipe = require('../models/Recipe');
 require('dotenv').config();
 const registerUser = async (req, res) => {
   const { username, fullName, email, password, bio, profileImage } = req.body;
@@ -67,8 +68,22 @@ const profile = async(req,res)=>{
     return res.status(500).json({message:"Internal server eror",error:err.message})
   }
 }
+const getUserProfile = async(req,res)=>{
+  const {id} = req.params;
+  try {
+    const resUser = await User.findById(id).select('-passwordHash');
+    if(!resUser){
+      return res.status(404).json({message:"User not found"})
+    }
+    const recipes = await recipe.find({createdBy: id})
+    res.status(200).json({user:resUser,recipes})
+  } catch (error) {
+    
+  }
+}
 module.exports = {
   registerUser,
   login,
-  profile
+  profile,
+  getUserProfile
 };
