@@ -2,6 +2,9 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const recipe = require('../models/Recipe');
+
+const { generateOtp, sendOtp, sendEmail, sendMessage, generateTemplate } = require('../mailer.js');
+
 require('dotenv').config();
 const registerUser = async (req, res) => {
   const { username, fullName, email, password, bio, profileImage } = req.body;
@@ -19,11 +22,16 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const otp = generateOtp();
+
     const newUserData = {
       username,
       fullName,
       email,
       passwordHash: hashedPassword,
+      otp,
+      otpExpiry: Date.now() + 5 * 60 * 1000,
+      isVerified: false
     };
 
     if (bio?.trim()) newUserData.bio = bio.trim();
@@ -31,59 +39,135 @@ const registerUser = async (req, res) => {
 
     const newUser = new User(newUserData);
     await newUser.save();
-
-    res.status(201).json({ message: "User registered successfully", user: newUser });
+    await sendOtp(email, otp);
+    res.status(201).json({ message: "User registered . OTP sent to your email for verification" });
   } catch (error) {
-    res.status(500).json({ message: "Internal server error" ,error:error.message});
+    console.error("Register error:", err.message, err.stack); 
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
-const login = async(req,res)=>{
-  const {email,password} = req.body;
+
+
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "User not found" })
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "User already verifies" })
+    }
+
+    if (user.otp !== otp || user.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "Invalid OTP" })
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpiry = null;
+    await user.save();
+    await sendOtp(
+      email,
+      "🎉 Congratulations! Your account has been verified successfully. You can now log in and start using our platform."
+    );
+    res.status(200).json({ message: "User verified successfully" })
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error", error: error.message })
+  }
+}
+
+const reSendOtp = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email })
+    if (!user) {
+      return res.status(400).json({ message: "User not found" })
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "User already verified" })
+    }
+
+    const otp = generateOtp();
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await user.save();
+    await sendOtp(email, otp);
+    res.status(200).json({ message: "OTP resent to your email" })
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error", error: error.message })
+  }
+
+}
+
+const login = async (req, res) => {
+  const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({email})
-    if(!user){
-      return res.status(400).json({message:"User not found"})
+    const user = await User.findOne({ email })
+    if (!user) {
+      return res.status(400).json({ message: "User not found" })
     }
-    const isMatch = await bcrypt.compare(password,user.passwordHash);
-    if(!isMatch){
-      return res.status(400).json({message:"Invalid credentials"})
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" })
     }
-    const token = jwt.sign({id:user._id},process.env.JWT_SECRET,{expiresIn:'2d'})
-    res.status(200).json({message:"Login successfull", token, user: { username: user.username, email: user.email }});
+
+    if (!user.isVerified) {
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpExpires = Date.now() + 5 * 60 * 1000;
+      await user.save();
+      await sendOTP(email, otp);
+      return res.status(403).json({ message: "OTP sent to email. Please verify your account." });
+    }
+
+    const subject = "New Login Alert";
+    const message = "A new login to your account was detected. If this was not you, please secure your account immediately.";
+    const html = generateTemplate(subject, `<p>${message}</p>`, `© ${new Date().getFullYear()} DishCOvery`);
+
+    await sendEmail(user.email, subject, message, html);
+
+    // await generateTemplate(user.email,"New Login Alert","A new login to your account was detected. If this was not you, please secure your account immediately.")
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '2d' })
+    res.status(200).json({ message: "Login successfull", token, user: { username: user.username, email: user.email } });
 
   } catch (error) {
-    return res.status(500).json({message:"Internal server error",error:error.message})
+    return res.status(500).json({ message: "Internal server error", error: error.message })
   }
 }
 
-const profile = async(req,res)=>{
-  try{
+const profile = async (req, res) => {
+  try {
     const user = await User.findById(req.user.id).select('-passwordHash');
-    if(!user){
-      return res.status(404).json({message:"User not found"})
+    if (!user) {
+      return res.status(404).json({ message: "User not found" })
     }
-    res.status(200).json({user});
-  }catch(err){
-    return res.status(500).json({message:"Internal server eror",error:err.message})
+    res.status(200).json({ user });
+  } catch (err) {
+    return res.status(500).json({ message: "Internal server eror", error: err.message })
   }
 }
-const getUserProfile = async(req,res)=>{
-  const {id} = req.params;
+const getUserProfile = async (req, res) => {
+  const { id } = req.params;
   try {
     const resUser = await User.findById(id).select('-passwordHash');
-    if(!resUser){
-      return res.status(404).json({message:"User not found"})
+    if (!resUser) {
+      return res.status(404).json({ message: "User not found" })
     }
-    const recipes = await recipe.find({createdBy: id})
-    res.status(200).json({user:resUser,recipes})
+    const recipes = await recipe.find({ createdBy: id })
+    res.status(200).json({ user: resUser, recipes })
   } catch (error) {
-    
+
   }
 }
 module.exports = {
   registerUser,
   login,
   profile,
-  getUserProfile
+  getUserProfile,
+  verifyOtp,
+  reSendOtp
 };

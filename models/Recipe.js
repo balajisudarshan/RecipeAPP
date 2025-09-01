@@ -25,7 +25,23 @@ const recipeSchema = new mongoose.Schema({
     type:mongoose.Schema.ObjectId,
     ref:'User',
     required:true
+  },
+  creatorName:{
+    type:String,
+    // ref:'User',
+    // required:true
   }
 })
 
+
+recipeSchema.pre("save",async function(next){
+  if(!this.creatorName && this.createdBy){
+    const User = mongoose.model("User");
+    const user = await User.findById(this.createdBy).select("username");
+
+    if(user){
+      this.creatorName = user.username;
+    }
+  }
+})
 module.exports = mongoose.model('Recipe',recipeSchema)
