@@ -14,14 +14,23 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Username, email, and password are required." });
     }
 
+    // Check for existing user
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+
     if (existingUser) {
-      return res.status(400).json({ message: "Username or email already exists." });
+      if (!existingUser.isVerified) {
+        // 🔥 Delete the unverified record
+        await User.deleteOne({ _id: existingUser._id });
+      } else {
+        return res.status(400).json({ message: "Username or email already exists." });
+      }
     }
 
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Generate OTP
     const otp = generateOtp();
 
     const newUserData = {
@@ -30,53 +39,55 @@ const registerUser = async (req, res) => {
       email,
       passwordHash: hashedPassword,
       otp,
-      otpExpiry: Date.now() + 5 * 60 * 1000,
-      isVerified: false
+      otpExpiry: Date.now() + 5 * 60 * 1000, // 5 minutes
+      isVerified: false,
     };
 
     if (bio?.trim()) newUserData.bio = bio.trim();
     if (profileImage?.trim()) newUserData.profileImage = profileImage.trim();
 
+    // Save new user
     const newUser = new User(newUserData);
     await newUser.save();
+
+    // Send OTP
     await sendOtp(email, otp);
-    res.status(201).json({ message: "User registered . OTP sent to your email for verification" });
+
+    return res.status(201).json({ message: "OTP sent to your email for verification" });
   } catch (error) {
-    console.error("Register error:", err.message, err.stack); 
+    console.error("Register error:", error.message, error.stack);
     return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+
 
 
 const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
   try {
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: "User not found" })
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    if (user.isVerified) return res.status(400).json({ message: "User already verified" });
+
+    if (user.otpExpiry < Date.now()) {
+      await User.deleteOne({ email });
+      return res.status(400).json({ message: "OTP expired. Please register again." });
     }
 
-    if (user.isVerified) {
-      return res.status(400).json({ message: "User already verifies" })
-    }
-
-    if (user.otp !== otp || user.otpExpiry < Date.now()) {
-      return res.status(400).json({ message: "Invalid OTP" })
-    }
+    if (user.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
 
     user.isVerified = true;
     user.otp = null;
     user.otpExpiry = null;
     await user.save();
-    await sendOtp(
-      email,
-      "🎉 Congratulations! Your account has been verified successfully. You can now log in and start using our platform."
-    );
-    res.status(200).json({ message: "User verified successfully" })
+
+    res.status(200).json({ message: "User verified successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Internal server error", error: error.message })
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
-}
+};
+
 
 const reSendOtp = async (req, res) => {
   const { email } = req.body;
@@ -115,14 +126,14 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" })
     }
 
-    if (!user.isVerified) {
-      const otp = generateOTP();
-      user.otp = otp;
-      user.otpExpires = Date.now() + 5 * 60 * 1000;
-      await user.save();
-      await sendOTP(email, otp);
-      return res.status(403).json({ message: "OTP sent to email. Please verify your account." });
-    }
+    // if (!user.isVerified) {
+    //   const otp = generateOTP();
+    //   user.otp = otp;
+    //   user.otpExpires = Date.now() + 5 * 60 * 1000;
+    //   await user.save();
+    //   await sendOTP(email, otp);
+    //   return res.status(403).json({ message: "OTP sent to email. Please verify your account." });
+    // }
 
     const subject = "New Login Alert";
     const message = "A new login to your account was detected. If this was not you, please secure your account immediately.";
