@@ -34,14 +34,20 @@ const recipeSchema = new mongoose.Schema({
 })
 
 
-recipeSchema.pre("save",async function(next){
-  if(!this.creatorName && this.createdBy){
-    const User = mongoose.model("User");
-    const user = await User.findById(this.createdBy).select("username");
+recipeSchema.pre("save", async function (next) {
+  try {
+    if (!this.creatorName && this.createdBy) {
+      const User = mongoose.model("User");
+      const user = await User.findById(this.createdBy).select("username");
 
-    if(user){
-      this.creatorName = user.username;
+      if (user) {
+        this.creatorName = user.username;
+      }
     }
+    next(); 
+  } catch (error) {
+    next(error); 
   }
-})
+});
+
 module.exports = mongoose.model('Recipe',recipeSchema)

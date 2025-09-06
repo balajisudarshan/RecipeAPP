@@ -39,7 +39,7 @@ const registerUser = async (req, res) => {
       email,
       passwordHash: hashedPassword,
       otp,
-      otpExpiry: Date.now() + 5 * 60 * 1000, // 5 minutes
+      otpExpiry: Date.now() + 5 * 60 * 1000,
       isVerified: false,
     };
 
@@ -141,7 +141,7 @@ const login = async (req, res) => {
 
     await sendEmail(user.email, subject, message, html);
 
-    // await generateTemplate(user.email,"New Login Alert","A new login to your account was detected. If this was not you, please secure your account immediately.")
+    
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '2d' })
     res.status(200).json({ message: "Login successfull", token, user: { username: user.username, email: user.email } });
 
