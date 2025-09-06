@@ -15,16 +15,17 @@ const getSingleRecipe = async(req,res)=>{
 }
 
 const addRecipe = async (req, res) => {
-  const { title, description, ingredients, image } = req.body;
+  const { title, description, ingredients, image, foodType } = req.body;
 
   try {
     const newRecipe = new Recipe({
       title,
       description,
       ingredients,
-      image: image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+       image: image || "https://ichef.bbci.co.uk/food/ic/food_16x9_1600/recipes/quick_flatbreads_43123_16x9.jpg",//"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
       createdBy: req.user.id,
-      creatorName: req.user.username
+      creatorName: req.user.username,
+      foodType, 
     });
 
     await newRecipe.save();
