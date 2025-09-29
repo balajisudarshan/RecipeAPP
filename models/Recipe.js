@@ -16,7 +16,7 @@ const recipeSchema = new mongoose.Schema({
 
   image: {
     type: String,
-    default: "", // leave blank, we’ll set conditionally in pre-save
+    default: "", 
   },
   likes: [
     {
