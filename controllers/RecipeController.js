@@ -112,4 +112,35 @@ const deleteRecipe = async (req, res) => {
 
   }
 }
-module.exports = { addRecipe, getMyRecipes, getRecipes, getAllRecipes, deleteRecipe , getSingleRecipe};
+
+const toggleLike = async(req,res)=>{
+  try {
+    const recipeId = req.params.id
+    const userId = req.user.id;
+
+    const recipe = await Recipe.findById(recipeId)
+    if(!recipe){
+      return res.status(404).json({message:"Recipe not found"})
+    }
+
+    const isAlreadyLiked = await recipe.likes.includes(userId)
+
+    if(isAlreadyLiked){
+      recipe.likes.pull(userId)
+    }else{
+      recipe.likes.push(userId)
+    }
+
+    await recipe.save();
+
+    return res.status(200).json({
+      message: isAlreadyLiked ? "Recipe unliked" : "Recipe liked",
+      likesCount: recipe.likes.length,
+      likes: recipe.likes,
+    });
+  } catch (error) {
+    console.error("Error Liking",error)
+    return res.status(500).json({message:"Internal server error"})
+  }
+}
+module.exports = { addRecipe, getMyRecipes, getRecipes, getAllRecipes, deleteRecipe , getSingleRecipe,toggleLike};
