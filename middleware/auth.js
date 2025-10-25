@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const User = require('../models/User');
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -12,7 +12,16 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; 
+
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ message: "User not found." });
+
+    
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({ message: "Token invalidated. Please login again." });
+    }
+
+    req.user = { id: user._id, username: user.username, email: user.email };
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token." });
