@@ -32,26 +32,52 @@ const recipeSchema = new mongoose.Schema({
   creatorName: {
     type: String,
   },
+  ownerEmail:{
+    type:String
+  },
   foodType: {
     type: String,
     enum: ["veg", "non-veg"],
     required: true,
   },
+  cuisine: {
+  type: String,
+  enum: [
+    "Punjabi",
+    "Andhra",
+    "Tamil",
+    "Kerala",
+    "Gujarati",
+    "Rajasthani",
+    "Mughlai",
+    "Bengali",
+    "North Indian",
+    "South Indian",
+    "Continental",
+    "Chinese",
+    "Italian",
+    "Fast Food",
+    "Other"
+  ],
+  required: true
+}
+
 });
 
-// Pre-save hook for defaults
+
 recipeSchema.pre("save", async function (next) {
   try {
-    // Assign creator name
+    
     if (!this.creatorName && this.createdBy) {
       const User = mongoose.model("User");
-      const user = await User.findById(this.createdBy).select("username");
+      const user = await User.findById(this.createdBy).select("username email");
       if (user) {
         this.creatorName = user.username;
+        this.ownerEmail = user.email
       }
     }
 
-    // Assign image if not provided
+    
     if (!this.image || this.image.trim() === "") {
       if (this.foodType === "veg") {
         this.image =
