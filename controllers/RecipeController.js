@@ -15,23 +15,31 @@
   }
 
   const addRecipe = async (req, res) => {
-    const { title, description, ingredients, image, foodType, cuisine } = req.body;
-
+    const { title, description, ingredients, foodType, cuisine } = req.body;
+  
+    // Use uploaded file if exists
+    const image = req.file ? `/uploads/${req.file.filename}` : "";
+  
+    // Handle ingredients array or comma-separated string
+    const ingredientsArray = Array.isArray(ingredients) 
+      ? ingredients 
+      : ingredients.split(',').map(i => i.trim());
+  
     try {
       const newRecipe = new Recipe({
         title,
         description,
-        ingredients,
-        image: image || "https://ichef.bbci.co.uk/food/ic/food_16x9_1600/recipes/quick_flatbreads_43123_16x9.jpg",//"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+        ingredients: ingredientsArray,
+        image,
         createdBy: req.user.id,
         creatorName: req.user.username,
         ownerEmail: req.user.email,
         foodType,
         cuisine
       });
-
+  
       await newRecipe.save();
-
+  
       res.status(201).json({
         message: "Recipe added successfully",
         recipe: newRecipe,
@@ -44,6 +52,8 @@
       });
     }
   };
+  
+  
 
   const getMyRecipes = async (req, res) => {
     try {
