@@ -33,7 +33,7 @@ const registerUser = async (req, res) => {
 
     await newUser.save();
 
-    const token = jwt.sign({ id: newUser._id, tokenVersion: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '2d' });
+    const token = jwt.sign({ id: newUser._id, tokenVersion: newUser.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '2d' });
 
     res.status(201).json({
       message: "User registered successfully",
@@ -59,13 +59,10 @@ const login = async (req, res) => {
 
     const token = jwt.sign({ id: user._id, email: user.email, username: user.username, tokenVersion: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '2d' });
     res.status(200).json({ message: "Login successful", token, user: { username: user.username, email: user.email } });
-    console.log(`📧 Preparing to send login email to ${user.email}`);
-    setImmediate(() => {
-      sendLoginNotification(user.email, user.username)
-        .then(() => console.log('✅ Login email sent'))
-        .catch(err => console.error('❌ Login email error:', err));
-    });
-
+    console.log(`✅ ${user.username} logged in successfully`);
+    sendLoginNotification(user.email,user.username).then(()=>{
+      console.log('Email sent to ' +user.email)
+    })
   } catch (error) {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
