@@ -18,6 +18,10 @@ const recipeSchema = new mongoose.Schema({
     type: String,
     default: "", 
   },
+  imageId:{
+    type:String,
+    default:"",
+  },
   likes: [
     {
       type: mongoose.Schema.ObjectId,
